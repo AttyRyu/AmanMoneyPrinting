@@ -1,0 +1,231 @@
+using System;
+using cAlgo.API;
+using cAlgo.API.Internals;
+using cAlgo.API.Indicators;
+
+namespace cAlgo.Indicators
+{
+    [Indicator(IsOverlay = true, TimeZone = TimeZones.EasternStandardTime, AccessRights = AccessRights.None)]
+    public class PivotPoint : Indicator
+    {
+        private DateTime _previousPeriodStartTime;
+        private int _previousPeriodStartIndex;
+        private TimeFrame PivotTimeFrame;
+        private VerticalAlignment vAlignment = VerticalAlignment.Top;
+        private HorizontalAlignment hAlignment = HorizontalAlignment.Right;
+
+        public string PP;
+
+        Colors pivotColor = Colors.Magenta;
+        Colors supportColor = Colors.Red;
+        Colors resistanceColor = Colors.DodgerBlue;
+        Colors pmedioColor = Colors.Green;
+
+        [Parameter("Show Labels", DefaultValue = true)]
+        public bool ShowLabels { get; set; }
+
+        [Parameter("Pivot Color", DefaultValue = "Magenta")]
+        public string PivotColor { get; set; }
+        [Parameter("Support Color", DefaultValue = "Red")]
+        public string SupportColor { get; set; }
+        [Parameter("Resistance Color", DefaultValue = "DodgerBlue")]
+        public string ResistanceColor { get; set; }
+        [Parameter("PMedio Color", DefaultValue = "Green")]
+        public string PmedioColor { get; set; }
+
+        [Parameter("Espessura Pivot", DefaultValue = 1)]
+        public int Espessura { get; set; }
+
+        [Parameter("Espessura Pivot Medio", DefaultValue = 1)]
+        public int Espessura2 { get; set; }
+
+
+        protected override void Initialize()
+        {
+
+            PivotTimeFrame = TimeFrame.Daily;
+            PP = "P Daily";
+
+                        /*            if (TimeFrame < TimeFrame.Hour4)
+            {
+                PivotTimeFrame = TimeFrame.Daily;
+                PP = "P Daily";
+            }
+  
+  
+            if ((TimeFrame >= TimeFrame.Hour4) && (TimeFrame < TimeFrame.Weekly))
+            {
+                PivotTimeFrame = TimeFrame.Weekly;
+                PP = "P Weekly";
+            }
+  
+  
+            if (TimeFrame >= TimeFrame.Weekly)
+            {
+                PivotTimeFrame = TimeFrame.Monthly;
+                PP = "P Monthly";
+            }
+*/
+Enum.TryParse(PivotColor, out pivotColor);
+            Enum.TryParse(SupportColor, out supportColor);
+            Enum.TryParse(ResistanceColor, out resistanceColor);
+            Enum.TryParse(PmedioColor, out pmedioColor);
+
+        }
+
+        private DateTime GetStartOfPeriod(DateTime dateTime)
+        {
+            return CutToOpenByNewYork(dateTime, PivotTimeFrame);
+        }
+
+        private DateTime GetEndOfPeriod(DateTime dateTime)
+        {
+            if (PivotTimeFrame == TimeFrame.Monthly)
+            {
+                return new DateTime(dateTime.Year, dateTime.Month, 1).AddMonths(1);
+            }
+
+            return AddPeriod(CutToOpenByNewYork(dateTime, PivotTimeFrame), PivotTimeFrame);
+        }
+
+        public override void Calculate(int index)
+        {
+            var currentPeriodStartTime = GetStartOfPeriod(MarketSeries.OpenTime[index]);
+            if (currentPeriodStartTime == _previousPeriodStartTime)
+                return;
+
+            if (index > 0)
+                CalculatePivots(_previousPeriodStartTime, _previousPeriodStartIndex, currentPeriodStartTime, index);
+
+            _previousPeriodStartTime = currentPeriodStartTime;
+            _previousPeriodStartIndex = index;
+        }
+
+        private void CalculatePivots(DateTime startTime, int startIndex, DateTime startTimeOfNextPeriod, int index)
+        {
+            var high = MarketSeries.High[startIndex];
+            var low = MarketSeries.Low[startIndex];
+            var close = MarketSeries.Close[startIndex];
+            var i = startIndex + 1;
+
+            while (GetStartOfPeriod(MarketSeries.OpenTime[i]) == startTime && i < MarketSeries.Close.Count)
+            {
+                high = Math.Max(high, MarketSeries.High[i]);
+                low = Math.Min(low, MarketSeries.Low[i]);
+                close = MarketSeries.Close[i];
+
+                i++;
+            }
+
+            var pivotStartTime = startTimeOfNextPeriod;
+            var pivotEndTime = GetEndOfPeriod(startTimeOfNextPeriod);
+
+            var pivot = (high + low + close) / 3;
+
+            var r1 = 2 * pivot - low;
+            var s1 = 2 * pivot - high;
+
+            var r2 = pivot + high - low;
+            var s2 = pivot - high + low;
+
+            var r3 = high + 2 * (pivot - low);
+            var s3 = low - 2 * (high - pivot);
+
+            var r4 = r3 + pivot - low;
+            var s4 = s3 + pivot - high;
+
+
+            var m0 = (s4 + s3) / 2;
+            var m1 = (s3 + s2) / 2;
+            var m2 = (s2 + s1) / 2;
+            var m3 = (s1 + pivot) / 2;
+            var m4 = (pivot + r1) / 2;
+            var m5 = (r1 + r2) / 2;
+            var m6 = (r2 + r3) / 2;
+            var m7 = (r3 + r4) / 2;
+
+
+            ChartObjects.DrawLine("pivot " + startIndex, pivotStartTime, pivot, pivotEndTime, pivot, pivotColor, Espessura, LineStyle.Solid);
+            ChartObjects.DrawLine("r1 " + startIndex, pivotStartTime, r1, pivotEndTime, r1, resistanceColor, Espessura, LineStyle.Solid);
+            ChartObjects.DrawLine("r2 " + startIndex, pivotStartTime, r2, pivotEndTime, r2, resistanceColor, Espessura, LineStyle.Solid);
+            ChartObjects.DrawLine("r3 " + startIndex, pivotStartTime, r3, pivotEndTime, r3, Colors.Aqua, Espessura, LineStyle.Solid);
+            ChartObjects.DrawLine("r4 " + startIndex, pivotStartTime, r4, pivotEndTime, r4, Colors.SlateBlue, Espessura, LineStyle.Solid);
+
+            ChartObjects.DrawLine("s1 " + startIndex, pivotStartTime, s1, pivotEndTime, s1, supportColor, Espessura, LineStyle.Solid);
+            ChartObjects.DrawLine("s2 " + startIndex, pivotStartTime, s2, pivotEndTime, s2, supportColor, Espessura, LineStyle.Solid);
+            ChartObjects.DrawLine("s3 " + startIndex, pivotStartTime, s3, pivotEndTime, s3, Colors.Yellow, Espessura, LineStyle.Solid);
+            ChartObjects.DrawLine("s4 " + startIndex, pivotStartTime, s4, pivotEndTime, s4, Colors.Orange, Espessura, LineStyle.Solid);
+
+
+            ChartObjects.DrawLine("m0 " + startIndex, pivotStartTime, m0, pivotEndTime, m0, pmedioColor, Espessura2, LineStyle.DotsRare);
+            ChartObjects.DrawLine("m1 " + startIndex, pivotStartTime, m1, pivotEndTime, m1, pmedioColor, Espessura2, LineStyle.DotsRare);
+            ChartObjects.DrawLine("m2 " + startIndex, pivotStartTime, m2, pivotEndTime, m2, pmedioColor, Espessura2, LineStyle.DotsRare);
+            ChartObjects.DrawLine("m3 " + startIndex, pivotStartTime, m3, pivotEndTime, m3, pmedioColor, Espessura2, LineStyle.DotsRare);
+
+            ChartObjects.DrawLine("m4 " + startIndex, pivotStartTime, m4, pivotEndTime, m4, pmedioColor, Espessura2, LineStyle.DotsRare);
+            ChartObjects.DrawLine("m5 " + startIndex, pivotStartTime, m5, pivotEndTime, m5, pmedioColor, Espessura2, LineStyle.DotsRare);
+            ChartObjects.DrawLine("m6 " + startIndex, pivotStartTime, m6, pivotEndTime, m6, pmedioColor, Espessura2, LineStyle.DotsRare);
+            ChartObjects.DrawLine("m7 " + startIndex, pivotStartTime, m7, pivotEndTime, m7, pmedioColor, Espessura2, LineStyle.DotsRare);
+
+            if (!ShowLabels)
+                return;
+
+            ChartObjects.DrawText("Lpivot " + startIndex, PP + "=" + pivot.ToString("0.00000"), index, pivot, vAlignment, hAlignment, Colors.White);
+            ChartObjects.DrawText("Lr1 " + startIndex, "R1=" + r1.ToString("0.00000"), index, r1, vAlignment, hAlignment, resistanceColor);
+            ChartObjects.DrawText("Lr2 " + startIndex, "R2=" + r2.ToString("0.00000"), index, r2, vAlignment, hAlignment, resistanceColor);
+            ChartObjects.DrawText("Lr3 " + startIndex, "R3=" + r3.ToString("0.00000"), index, r3, vAlignment, hAlignment, Colors.Aqua);
+            ChartObjects.DrawText("Lr4 " + startIndex, "R4=" + r4.ToString("0.00000"), index, r4, vAlignment, hAlignment, Colors.SlateBlue);
+
+            ChartObjects.DrawText("Ls1 " + startIndex, "S1=" + s1.ToString("0.00000"), index, s1, vAlignment, hAlignment, supportColor);
+            ChartObjects.DrawText("Ls2 " + startIndex, "S2=" + s2.ToString("0.00000"), index, s2, vAlignment, hAlignment, supportColor);
+            ChartObjects.DrawText("Ls3 " + startIndex, "S3=" + s3.ToString("0.00000"), index, s3, vAlignment, hAlignment, Colors.Yellow);
+            ChartObjects.DrawText("Ls4 " + startIndex, "S4=" + s4.ToString("0.00000"), index, s4, vAlignment, hAlignment, Colors.Orange);
+
+
+        }
+
+
+        private static DateTime CutToOpenByNewYork(DateTime date, TimeFrame timeFrame)
+        {
+            if (timeFrame == TimeFrame.Daily)
+            {
+                var hourShift = (date.Hour + 24 - 17) % 24;
+                return new DateTime(date.Year, date.Month, date.Day, date.Hour, 0, 0, DateTimeKind.Unspecified).AddHours(-hourShift);
+            }
+
+            if (timeFrame == TimeFrame.Weekly)
+                return GetStartOfTheWeek(date);
+
+            if (timeFrame == TimeFrame.Monthly)
+            {
+                return new DateTime(date.Year, date.Month, 1, 0, 0, 0, DateTimeKind.Unspecified);
+            }
+
+            throw new ArgumentException(string.Format("Unknown timeframe: {0}", timeFrame), "timeFrame");
+        }
+
+        private static DateTime GetStartOfTheWeek(DateTime dateTime)
+        {
+            return dateTime.Date.AddDays((double)DayOfWeek.Sunday - (double)dateTime.Date.DayOfWeek).AddHours(-7);
+        }
+
+
+        public DateTime AddPeriod(DateTime dateTime, TimeFrame timeFrame)
+        {
+            if (timeFrame == TimeFrame.Daily)
+            {
+                return dateTime.AddDays(1);
+            }
+            if (timeFrame == TimeFrame.Weekly)
+            {
+                return dateTime.AddDays(7);
+            }
+            if (timeFrame == TimeFrame.Monthly)
+                return dateTime.AddMonths(1);
+
+            throw new ArgumentException(string.Format("Unknown timeframe: {0}", timeFrame), "timeFrame");
+        }
+
+    }
+
+}
