@@ -1,0 +1,79 @@
+using System;
+using System.Linq;
+using cAlgo.API;
+using cAlgo.API.Indicators;
+using cAlgo.API.Internals;
+using cAlgo.Indicators;
+namespace cAlgo.Robots
+{
+    [Robot(TimeZone = TimeZones.UTC, AccessRights = AccessRights.None)]
+    public class DaveCbot : Robot
+    {
+
+        //[Parameter("Source")]
+        //public DataSeries Source { get; set; }
+
+        //[Parameter("SRAT Period", DefaultValue = 14)]
+        //public int SRAtPeriod { get; set; }
+
+        [Parameter("Periods", DefaultValue = 100)]
+        public int Periods { get; set; }
+
+        [Parameter("Show Extreme H/L", DefaultValue = true)]
+        public bool ShowExtremeHL { get; set; }
+
+        [Parameter("Show Day H/L", DefaultValue = true)]
+        public bool ShowDayHL { get; set; }
+
+        [Parameter("Required Hits", DefaultValue = 5)]
+        public int RequiredHits { get; set; }
+
+        [Parameter("Zone Size", DefaultValue = 10)]
+        public int ZoneSize { get; set; }
+
+        [Parameter("Max Lines In Zone", DefaultValue = 3)]
+        public int MaxLinesInZone { get; set; }
+
+
+
+
+
+
+
+
+        private SRAtPrice SRAt;
+
+        protected override void OnStart()
+        {
+            // Put your initialization logic here
+            SRAt = Indicators.GetIndicator<SRAtPrice>(Periods, ShowExtremeHL, ShowDayHL, RequiredHits, ZoneSize, MaxLinesInZone);
+        }
+
+        protected override void OnTick()
+        {
+            // Put your core logic here
+            //Print("{0}", SRAt.SRStyle);
+            //Print(SRAt.SRStyle.GetType());
+            //Print(Convert.ToDouble(SRAt.SRStyle));
+            //Print(double.IsNaN(SRAt.SRStyle));
+            //Print(Convert.ToDouble(Symbol.Ask));
+            //Print(Symbol.Ask);
+            Print(SRAt.SRStyle.LastValue);
+            //Print(SRAt.SRStyle.Count);
+
+            if (Symbol.Ask >= SRAt.SRStyle.LastValue)
+            {
+                //    Print(Symbol.Ask);
+                //    Print(SRAt.SRStyle.Count);
+                //    Print(SRAt.SRStyle);
+                Print("yehey");
+            }
+            else
+            {
+                Print("No Good");
+            }
+
+        }
+
+    }
+}
